@@ -111,7 +111,19 @@ jobs:
       - name: Verify Rolling Deployment Status on GKE
         run: |
           echo "Awaiting rollout completion for fraud-api-deployment..."
-          kubectl rollout status deployment/fraud-api-deployment -n mlops-fraud --timeout=300s
+          if ! kubectl rollout status deployment/fraud-api-deployment -n mlops-fraud --timeout=180s; then
+            echo "==================== POD DIAGNOSTICS ===================="
+            echo ">>> NODES IN CLUSTER:"
+            kubectl get nodes -o wide
+            echo ">>> PODS IN mlops-fraud NAMESPACE:"
+            kubectl get pods -n mlops-fraud -o wide
+            echo ">>> DESCRIBE PODS (EVENTS & FAILURE REASONS):"
+            kubectl describe pods -n mlops-fraud
+            echo ">>> CONTAINER LOGS:"
+            kubectl logs -n mlops-fraud -l app.kubernetes.io/name=fraud-api --tail=100 || true
+            echo "=========================================================="
+            exit 1
+          fi
 
       - name: Post-Deployment Verification
         run: |

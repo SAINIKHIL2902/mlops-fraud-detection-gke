@@ -1,7 +1,7 @@
 # 🛡️ Real-Time Transaction Fraud Detection Platform
 ### Production MLOps Microservice with FastAPI, Gradient Boosting, Docker, GitHub Actions CI/CD & Google Cloud Platform (GKE + Artifact Registry)
 
-[![CI Pipeline](https://github.com/your-org/mlops-fraud-detection-gke/actions/workflows/ci.yml/badge.svg)](https://github.com/your-org/mlops-fraud-detection-gke/actions/workflows/ci.yml)
+[![CI Pipeline](https://github.com/SAINIKHIL2902/mlops-fraud-detection-gke/actions/workflows/ci.yml/badge.svg)](https://github.com/SAINIKHIL2902/mlops-fraud-detection-gke/actions/workflows/ci.yml)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-3776AB.svg?logo=python&logoColor=white)](https://www.python.org/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg?logo=docker&logoColor=white)](https://www.docker.com/)

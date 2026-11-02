@@ -1,0 +1,57 @@
+{
+  "model_name": "realtime-fraud-detector",
+  "model_version": "1.0.0",
+  "algorithm": "RobustScaler + HistGradientBoostingClassifier",
+  "created_at": "2026-11-02T01:14:13.036261+00:00",
+  "optimal_threshold": 0.827,
+  "features": [
+    "amount",
+    "hour_of_day",
+    "distance_from_home_km",
+    "distance_from_last_tx_km",
+    "tx_velocity_1h",
+    "tx_amount_ratio_to_mean",
+    "is_foreign_tx",
+    "is_high_risk_merchant",
+    "device_trust_score"
+  ],
+  "metrics": {
+    "test_roc_auc": 0.9998,
+    "test_pr_auc": 0.9916,
+    "test_f1_calibrated": 0.9521,
+    "test_f1_default_0_5": 0.9309,
+    "confusion_matrix": {
+      "true_negatives": 8814,
+      "false_positives": 6,
+      "false_negatives": 11,
+      "true_positives": 169
+    },
+    "classification_report": {
+      "0": {
+        "precision": 0.9987535410764873,
+        "recall": 0.9993197278911564,
+        "f1-score": 0.9990365542646642,
+        "support": 8820.0
+      },
+      "1": {
+        "precision": 0.9657142857142857,
+        "recall": 0.9388888888888889,
+        "f1-score": 0.952112676056338,
+        "support": 180.0
+      },
+      "accuracy": 0.9981111111111111,
+      "macro avg": {
+        "precision": 0.9822339133953866,
+        "recall": 0.9691043083900226,
+        "f1-score": 0.9755746151605011,
+        "support": 9000.0
+      },
+      "weighted avg": {
+        "precision": 0.9980927559692433,
+        "recall": 0.9981111111111111,
+        "f1-score": 0.9980980767004977,
+        "support": 9000.0
+      }
+    }
+  }
+}

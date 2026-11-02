@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mlops-fraud
+  labels:
+    app.kubernetes.io/part-of: fraud-detection-platform
+    environment: production
+

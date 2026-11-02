@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fraud-api-config
+  namespace: mlops-fraud
+  labels:
+    app.kubernetes.io/name: fraud-api
+data:
+  ENVIRONMENT: "production"
+  LOG_LEVEL: "INFO"
+  HOST: "0.0.0.0"
+  PORT: "8000"
+  MODEL_PATH: "models/fraud_model_pipeline.joblib"
+  METADATA_PATH: "models/model_metadata.json"
+  FALLBACK_THRESHOLD: "0.8270"
+  ENABLE_METRICS: "true"
+

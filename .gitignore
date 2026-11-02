@@ -1,0 +1,29 @@
+# Virtual environments
+.venv
+.venv/
+venv
+venv/
+env
+env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Testing & coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Environment files with secrets
+.env.local
+*.secret.yaml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Model tracking large temp files (keep model.joblib if you want it versioned, or commit it)
+

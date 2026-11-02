@@ -1,0 +1,130 @@
+name: Continuous Deployment (CD) to Google Kubernetes Engine (GKE)
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "app/**"
+      - "models/**"
+      - "k8s/**"
+      - "Dockerfile"
+      - ".github/workflows/cd.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write  # Required for Google Workload Identity Federation
+
+env:
+  GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  GKE_CLUSTER_NAME: ${{ secrets.GKE_CLUSTER_NAME || 'mlops-gke-cluster' }}
+  GKE_LOCATION: ${{ secrets.GKE_LOCATION || 'us-central1' }}
+  GAR_LOCATION: ${{ secrets.GAR_LOCATION || 'us-central1' }}
+  GAR_REPOSITORY: ${{ secrets.GAR_REPOSITORY || 'mlops-repo' }}
+  IMAGE_NAME: fraud-detector
+
+jobs:
+  deploy-to-gke:
+    name: Build, Push to Artifact Registry & Deploy to GKE
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Verify or Generate Production Model Artifact
+        run: |
+          pip install -r requirements.txt
+          if [ ! -f "models/fraud_model_pipeline.joblib" ]; then
+            echo "Training fresh model for production artifact..."
+            python pipeline/train.py
+          fi
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          # Supports Workload Identity Federation (recommended) OR Service Account JSON Key
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Google Artifact Registry
+        run: |
+          gcloud auth configure-docker ${{ env.GAR_LOCATION }}-docker.pkg.dev --quiet
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build, Tag and Push Image to Google Artifact Registry
+        env:
+          REGISTRY_HOST: ${{ env.GAR_LOCATION }}-docker.pkg.dev
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          IMAGE_URI="$REGISTRY_HOST/$GCP_PROJECT_ID/$GAR_REPOSITORY/$IMAGE_NAME"
+          echo "Building and pushing image: $IMAGE_URI"
+
+          docker build \
+            --tag $IMAGE_URI:$IMAGE_TAG \
+            --tag $IMAGE_URI:latest \
+            .
+
+          echo "Pushing images to Google Artifact Registry..."
+          docker push $IMAGE_URI:$IMAGE_TAG
+          docker push $IMAGE_URI:latest
+
+          echo "TARGET_IMAGE_URI=$IMAGE_URI:$IMAGE_TAG" >> $GITHUB_ENV
+
+      - name: Install kubectl and Kustomize
+        uses: azure/setup-kubectl@v3
+        with:
+          version: "v1.29.0"
+
+      - name: Connect to GKE Cluster
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ env.GKE_CLUSTER_NAME }}
+          location: ${{ env.GKE_LOCATION }}
+
+      - name: Update Kubernetes Image Tag via Kustomize
+        run: |
+          cd k8s
+          echo "Patching Kustomize image target to: $TARGET_IMAGE_URI"
+          kustomize edit set image us-central1-docker.pkg.dev/YOUR_GCP_PROJECT/mlops-repo/fraud-detector=$TARGET_IMAGE_URI
+          cat kustomization.yaml
+
+      - name: Apply Manifests to Google Kubernetes Engine
+        run: |
+          echo "Deploying to GKE namespace: mlops-fraud..."
+          kubectl apply -k k8s/
+
+      - name: Verify Rolling Deployment Status on GKE
+        run: |
+          echo "Awaiting rollout completion for fraud-api-deployment..."
+          kubectl rollout status deployment/fraud-api-deployment -n mlops-fraud --timeout=300s
+
+      - name: Post-Deployment Verification
+        run: |
+          echo "=== Pods in mlops-fraud ==="
+          kubectl get pods -n mlops-fraud -l app.kubernetes.io/name=fraud-api
+          
+          echo "=== Services and BackendConfig ==="
+          kubectl get svc -n mlops-fraud fraud-api-service
+          kubectl get backendconfig -n mlops-fraud fraud-api-backendconfig
+          
+          echo "=== Ingress and Cloud Load Balancer ==="
+          kubectl get ingress -n mlops-fraud fraud-api-ingress
+          
+          echo "=== Horizontal Pod Autoscaler ==="
+          kubectl get hpa -n mlops-fraud fraud-api-hpa
+
+          echo "✅ Production deployment to Google Kubernetes Engine (GKE) succeeded!"

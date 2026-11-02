@@ -1,0 +1,116 @@
+name: Continuous Integration (CI)
+
+on:
+  push:
+    branches: [main, master, develop]
+    paths:
+      - "app/**"
+      - "pipeline/**"
+      - "tests/**"
+      - "models/**"
+      - "Dockerfile"
+      - "requirements*.txt"
+      - ".github/workflows/ci.yml"
+  pull_request:
+    branches: [main, master]
+    paths:
+      - "app/**"
+      - "pipeline/**"
+      - "tests/**"
+      - "models/**"
+      - "Dockerfile"
+      - "requirements*.txt"
+      - ".github/workflows/ci.yml"
+  workflow_dispatch:
+
+jobs:
+  lint-and-test:
+    name: Lint, Unit & Integration Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Lint with Flake8
+        run: |
+          # Stop build if there are Python syntax errors or undefined names
+          flake8 app pipeline tests --count --select=E9,F63,F7,F82 --show-source --statistics
+          # Warning check for complexity
+          flake8 app pipeline tests --count --exit-zero --max-complexity=10 --max-line-length=120 --statistics
+
+      - name: Verify Model Pipeline Artifacts
+        run: |
+          # If model artifact doesn't exist, execute reproducible training pipeline
+          if [ ! -f "models/fraud_model_pipeline.joblib" ]; then
+            echo "Model artifact missing. Executing training pipeline..."
+            python pipeline/train.py
+          else
+            echo "Found existing trained model artifact."
+          fi
+
+      - name: Run Pytest with Coverage
+        run: |
+          pytest -v --tb=short tests/
+
+  docker-build-and-verify:
+    name: Container Build & Local Smoke Test
+    needs: [lint-and-test]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Ensure Model Artifact Present for Build
+        run: |
+          if [ ! -f "models/fraud_model_pipeline.joblib" ]; then
+            echo "Training model artifact before building container..."
+            python -m pip install -r requirements.txt
+            python pipeline/train.py
+          fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker Image Locally
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          tags: mlops-fraud-api:test
+          load: true
+
+      - name: Run Container & Verify Health Probes
+        run: |
+          echo "Starting container in background..."
+          docker run -d --name fraud-api-test -p 8000:8000 mlops-fraud-api:test
+          
+          # Allow container 5 seconds to boot
+          sleep 5
+          
+          echo "Testing /health/live..."
+          curl -fail http://127.0.0.1:8000/health/live || (docker logs fraud-api-test && exit 1)
+          
+          echo "Testing /health/ready..."
+          curl -fail http://127.0.0.1:8000/health/ready || (docker logs fraud-api-test && exit 1)
+          
+          echo "Testing /metrics..."
+          curl -fail http://127.0.0.1:8000/metrics || (docker logs fraud-api-test && exit 1)
+          
+          docker stop fraud-api-test
+          docker rm fraud-api-test
+          echo "Container build and smoke test passed successfully!"
+
